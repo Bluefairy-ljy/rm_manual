@@ -43,6 +43,7 @@ ManualBase::ManualBase(ros::NodeHandle& nh, ros::NodeHandle& nh_referee)
   manual_to_referee_pub_ = nh.advertise<rm_msgs::ManualToReferee>("/manual_to_referee", 1);
 
   controller_manager_.startStateControllers();
+  //绑定触发事件函数
   right_switch_down_event_.setRising(boost::bind(&ManualBase::rightSwitchDownRise, this));
   right_switch_mid_event_.setRising(boost::bind(&ManualBase::rightSwitchMidRise, this));
   right_switch_up_event_.setRising(boost::bind(&ManualBase::rightSwitchUpRise, this));
@@ -76,17 +77,23 @@ ManualBase::ManualBase(ros::NodeHandle& nh, ros::NodeHandle& nh_referee)
 
 void ManualBase::run()
 {
+  //检查裁判系统
   checkReferee();
+  //更新ecat数据
   ecat_reconnected_event_.update(ecat_bus_is_online_);
+  //更新控制逻辑
   controller_manager_.update();
 }
 
 void ManualBase::checkReferee()
 {
+  //这三个是InputEvent的对象
   chassis_power_on_event_.update(chassis_output_on_);
   gimbal_power_on_event_.update(gimbal_output_on_);
   shooter_power_on_event_.update(shooter_output_on_);
+  //如果现在的时间减去裁判系统上一次发送的时间小于0.3s，则认为裁判系统在线
   referee_is_online_ = (ros::Time::now() - referee_last_get_stamp_ < ros::Duration(0.3));
+  //把操控数据发送给裁判系统
   manual_to_referee_pub_.publish(manual_to_referee_pub_data_);
 }
 
@@ -142,6 +149,7 @@ void ManualBase::actuatorStateCallback(const rm_msgs::ActuatorState::ConstPtr& d
 
 void ManualBase::dbusDataCallback(const rm_msgs::DbusData::ConstPtr& data)
 {
+  //现在的时刻距离上一次收到ddbus数据小于1s，则认为遥控器在线
   if (ros::Time::now() - data->stamp < ros::Duration(1.0))
   {
     if (!remote_is_open_)

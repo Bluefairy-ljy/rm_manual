@@ -280,6 +280,7 @@ void ChassisGimbalShooterManual::gimbalOutputOn()
   gimbal_calibration_->reset();
 }
 
+//键盘
 void ChassisGimbalShooterManual::updateRc(const rm_msgs::DbusData::ConstPtr& dbus_data)
 {
   ChassisGimbalManual::updateRc(dbus_data);
@@ -301,6 +302,7 @@ void ChassisGimbalShooterManual::updateRc(const rm_msgs::DbusData::ConstPtr& dbu
     gimbal_cmd_sender_->setBulletSpeed(shooter_cmd_sender_->getSpeed());
 }
 
+//遥控器
 void ChassisGimbalShooterManual::updatePc(const rm_msgs::DbusData::ConstPtr& dbus_data)
 {
   ChassisGimbalManual::updatePc(dbus_data);
@@ -392,10 +394,12 @@ void ChassisGimbalShooterManual::leftSwitchUpOn(ros::Duration duration)
     gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::TRACK);
   if (duration > ros::Duration(1.))
   {
+    //一下一下拨
     shooter_cmd_sender_->setShootFrequency(last_shoot_freq_);
     shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::PUSH);
     shooter_cmd_sender_->checkError(ros::Time::now());
   }
+  //一直
   else if (duration < ros::Duration(0.02))
   {
     shooter_cmd_sender_->setShootFrequency(rm_common::HeatLimit::MINIMAL);

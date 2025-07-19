@@ -20,8 +20,10 @@ public:
   {
     return last_state_;
   }
+  //注册函数rising_handler()处理上升沿事件
   void setRising(boost::function<void()> handler)
   {
+    //rising_handler_函数指针，存的是函数地址。move()是把handler（也是一个函数指针）地址右移给rising_handler_了
     rising_handler_ = std::move(handler);
   }
   void setFalling(boost::function<void()> handler)
@@ -58,8 +60,10 @@ public:
   }
   void update(bool state)
   {
+    //当前状态和上一次状态不同
     if (state != last_state_)
     {
+      //如果当前状态是高电平且函数指针不为空，就调用rising_handler_()来处理上升沿事件
       if (state && rising_handler_)
         rising_handler_();
       else if (!state && falling_handler_)

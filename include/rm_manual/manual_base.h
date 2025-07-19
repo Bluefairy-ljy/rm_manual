@@ -48,9 +48,9 @@ public:
   enum
   {
     PASSIVE,
-    IDLE,
-    RC,
-    PC
+    IDLE,//闲置
+    RC,//遥控器操控
+    PC//键鼠操控
   };
   virtual void run();
 
