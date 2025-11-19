@@ -6,16 +6,12 @@
 
 namespace rm_manual
 {
-//构造函数，初始化一堆sender
 ChassisGimbalManual::ChassisGimbalManual(ros::NodeHandle& nh, ros::NodeHandle& nh_referee) : ManualBase(nh, nh_referee)
 {
-  //在chassis下
   ros::NodeHandle chassis_nh(nh, "chassis");
-  //实例化
   chassis_cmd_sender_ = new rm_common::ChassisCommandSender(chassis_nh);
   if (!chassis_nh.getParam("speed_change_scale", speed_change_scale_))
     speed_change_scale_ = 1.;
-  //在vel下
   ros::NodeHandle vel_nh(nh, "vel");
   vel_cmd_sender_ = new rm_common::Vel2DCommandSender(vel_nh);
   if (!vel_nh.getParam("gyro_move_reduction", gyro_move_reduction_))

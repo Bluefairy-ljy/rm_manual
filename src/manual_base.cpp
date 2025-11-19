@@ -37,7 +37,9 @@ ManualBase::ManualBase(ros::NodeHandle& nh, ros::NodeHandle& nh_referee)
       "power_management/sample_and_status", 10, &ManualBase::capacityDataCallback, this);
   power_heat_data_sub_ =
       nh_referee.subscribe<rm_msgs::PowerHeatData>("power_heat_data", 10, &ManualBase::powerHeatDataCallback, this);
-  shoot_data_sub_ = nh_referee.subscribe<rm_msgs::ShootData>("shoot_data", 10, &ManualBase::shootDataCallback, this);
+  shoot_data_sub_ =
+    nh_referee.subscribe<rm_msgs::ShootData>("shoot_data", 10, &ManualBase::shootDataCallback, this);
+  //ballistic_solution_sub_ = nh.subscribe<std_msgs::Float32MultiArray>("/controllers/gimbal_controller/ballistic_solution", 10, &ManualBase::ballisticSolutionCallback, this);
 
   // pub
   manual_to_referee_pub_ = nh.advertise<rm_msgs::ManualToReferee>("/manual_to_referee", 1);
@@ -86,7 +88,7 @@ void ManualBase::checkReferee()
   chassis_power_on_event_.update(chassis_output_on_);
   gimbal_power_on_event_.update(gimbal_output_on_);
   shooter_power_on_event_.update(shooter_output_on_);
-  referee_is_online_ = (ros::Time::now() - referee_last_get_stamp_ < ros::Duration(0.3));
+  referee_is_online_ = (ros::Time::now() - referee_last_get_stamp_ < ros::Duration(1.0));
   manual_to_referee_pub_.publish(manual_to_referee_pub_data_);
 }
 
@@ -176,6 +178,12 @@ void ManualBase::trackCallback(const rm_msgs::TrackData::ConstPtr& data)
 {
   track_data_ = *data;
 }
+
+// void ManualBase::ballisticSolutionCallback(const std_msgs::Float32MultiArray::ConstPtr& data)
+// {
+//   ballistic_solution_ = *data;
+//   ballistic_updated_ = true;
+// }
 
 void ManualBase::gameRobotStatusCallback(const rm_msgs::GameRobotStatus::ConstPtr& data)
 {

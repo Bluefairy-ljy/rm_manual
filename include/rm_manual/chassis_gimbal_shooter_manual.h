@@ -19,10 +19,14 @@ public:
 protected:
   void ecatReconnected() override;
   void checkReferee() override;
+  void checkWheelsOnline();
   void checkKeyboard(const rm_msgs::DbusData::ConstPtr& dbus_data) override;
   void updateRc(const rm_msgs::DbusData::ConstPtr& dbus_data) override;
   void updatePc(const rm_msgs::DbusData::ConstPtr& dbus_data) override;
   void sendCommand(const ros::Time& time) override;
+  void updateWheelsState(const rm_ecat_msgs::RmEcatStandardSlaveReadings::ConstPtr& data,
+                       const std::vector<std::string>& chassis_motor);
+  void wheelsOnlineCallback(const rm_ecat_msgs::RmEcatStandardSlaveReadings::ConstPtr& data);
   void chassisOutputOn() override;
   void shooterOutputOn() override;
   void gimbalOutputOn() override;
@@ -65,9 +69,20 @@ protected:
   void mouseRightPress();
   void mouseRightRelease()
   {
-    gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
+    if (deployed_)
+    {
+      gimbal_cmd_sender_->setGimbalTrajFrameId("base_link");
+      gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::TRAJ);
+      traj_yaw_ = joint_state_.position[yaw_joint_sender_->getIndex()];
+      traj_pitch_ = joint_state_.position[pitch_joint_sender_->getIndex()];
+      gimbal_cmd_sender_->setGimbalTraj(traj_yaw_, traj_pitch_);
+    }
+    else
+      gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
     if (shooter_cmd_sender_->getMsg()->mode == rm_msgs::ShootCmd::PUSH)
       shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::READY);
+    if (use_lio_cmd_sender_->getUseLio())
+      use_lio_cmd_sender_->setUseLio(false);
   }
   void wPress() override;
   void aPress() override;
@@ -94,9 +109,7 @@ protected:
   virtual void shiftPress();
   virtual void shiftRelease();
   virtual void rPress();
-  virtual void qPress()
-  {
-  }
+  virtual void qPress();
   virtual void qRelease()
   {
   }
@@ -119,19 +132,32 @@ protected:
   rm_common::CameraSwitchCommandSender* camera_switch_cmd_sender_{};
   rm_common::JointPositionBinaryCommandSender* scope_cmd_sender_{};
   rm_common::JointPositionBinaryCommandSender* image_transmission_cmd_sender_{};
+  rm_common::JointPointCommandSender* pitch_joint_sender_{};
+  rm_common::JointPointCommandSender* yaw_joint_sender_{};
+  rm_common::UseLioCommandSender* use_lio_cmd_sender_{};
+  rm_common::ExtraTargetYCommandSender* extra_target_y_cmd_sender_{};
+  rm_common::ExtraTargetXCommandSender* extra_target_x_cmd_sender_{};
   rm_common::SwitchDetectionCaller* switch_detection_srv_{};
   rm_common::SwitchDetectionCaller* switch_armor_target_srv_{};
   rm_common::CalibrationQueue* chassis_calibration_;
   rm_common::CalibrationQueue* shooter_calibration_;
   rm_common::CalibrationQueue* gimbal_calibration_;
 
+  ros::Subscriber wheel_online_sub_;
+
+  ros::Time last_wheels_power_time_;
   geometry_msgs::PointStamped point_out_;
   uint8_t last_shoot_freq_{};
 
+  std::vector<std::string> chassis_motor_;
+  std::vector<bool> wheels_online_state_;
   bool prepare_shoot_ = false, is_balance_ = false, use_scope_ = false, adjust_image_transmission_ = false,
-       up_change_position_ = false, low_change_position_ = false, need_change_position_ = false, deployed_ = false;
-  double yaw_current_{};
+       up_change_position_ = false, low_change_position_ = false, need_change_position_ = false, deployed_ = false,
+       base_bottom_ = false;
+  bool all_wheel_offline_ = false;
   double traj_yaw_, traj_pitch_;
+  //double ballistic_yaw_ = 0.0, ballistic_pitch_ = 0.0;
+  //bool use_ballistic_traj_ = false;
   double scale_;
 };
 }  // namespace rm_manual
