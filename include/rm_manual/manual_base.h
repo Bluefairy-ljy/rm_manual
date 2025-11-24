@@ -99,7 +99,7 @@ protected:
   virtual void shootDataCallback(const rm_msgs::ShootData::ConstPtr& data)
   {
   }
-  //virtual void ballisticSolutionCallback(const std_msgs::Float32MultiArray::ConstPtr& data);
+  virtual void ballisticSolutionCallback(const std_msgs::Float32MultiArray::ConstPtr& data);
 
   // EtherCAT
   virtual void ecatReconnected()
@@ -186,7 +186,6 @@ protected:
   std::vector<std::string> chassis_mount_motor_, gimbal_mount_motor_, shooter_mount_motor_;
 
   std_msgs::Float32MultiArray ballistic_solution_;
-  bool ballistic_updated_ = false;
 };
 
 }  // namespace rm_manual

@@ -7,6 +7,8 @@
 #include "rm_manual/chassis_gimbal_manual.h"
 #include <rm_common/decision/calibration_queue.h>
 #include <angles/angles.h>
+#include <actionlib/client/simple_action_client.h>
+#include <hdl_global_localization/QueryGlobalLocalizationAction.h>
 
 namespace rm_manual
 {
@@ -69,20 +71,9 @@ protected:
   void mouseRightPress();
   void mouseRightRelease()
   {
-    if (deployed_)
-    {
-      gimbal_cmd_sender_->setGimbalTrajFrameId("base_link");
-      gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::TRAJ);
-      traj_yaw_ = joint_state_.position[yaw_joint_sender_->getIndex()];
-      traj_pitch_ = joint_state_.position[pitch_joint_sender_->getIndex()];
-      gimbal_cmd_sender_->setGimbalTraj(traj_yaw_, traj_pitch_);
-    }
-    else
-      gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
+    gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
     if (shooter_cmd_sender_->getMsg()->mode == rm_msgs::ShootCmd::PUSH)
       shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::READY);
-    if (use_lio_cmd_sender_->getUseLio())
-      use_lio_cmd_sender_->setUseLio(false);
   }
   void wPress() override;
   void aPress() override;
@@ -139,9 +130,12 @@ protected:
   rm_common::ExtraTargetXCommandSender* extra_target_x_cmd_sender_{};
   rm_common::SwitchDetectionCaller* switch_detection_srv_{};
   rm_common::SwitchDetectionCaller* switch_armor_target_srv_{};
+  //rm_common::RelocalizeCaller* relocalize_srv_{};
   rm_common::CalibrationQueue* chassis_calibration_;
   rm_common::CalibrationQueue* shooter_calibration_;
   rm_common::CalibrationQueue* gimbal_calibration_;
+
+  actionlib::SimpleActionClient<hdl_global_localization::QueryGlobalLocalizationAction> relocalize_action_client_;
 
   ros::Subscriber wheel_online_sub_;
 
@@ -153,11 +147,9 @@ protected:
   std::vector<bool> wheels_online_state_;
   bool prepare_shoot_ = false, is_balance_ = false, use_scope_ = false, adjust_image_transmission_ = false,
        up_change_position_ = false, low_change_position_ = false, need_change_position_ = false, deployed_ = false,
-       base_bottom_ = false;
+       relocalized_=false;
   bool all_wheel_offline_ = false;
-  double traj_yaw_, traj_pitch_;
-  //double ballistic_yaw_ = 0.0, ballistic_pitch_ = 0.0;
-  //bool use_ballistic_traj_ = false;
+  double ballistic_yaw_, ballistic_pitch_;
   double scale_;
 };
 }  // namespace rm_manual
