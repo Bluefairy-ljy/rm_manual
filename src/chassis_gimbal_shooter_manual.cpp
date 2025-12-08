@@ -8,7 +8,7 @@ namespace rm_manual
 {
 ChassisGimbalShooterManual::ChassisGimbalShooterManual(ros::NodeHandle& nh, ros::NodeHandle& nh_referee)
   : ChassisGimbalManual(nh, nh_referee)
-  , relocalize_action_client_("hdl_global_localization/relocalize", true)
+  //, relocalize_action_client_("hdl_global_localization/relocalize", true)
 {
   wheel_online_sub_ = nh.subscribe<rm_ecat_msgs::RmEcatStandardSlaveReadings>(
       "/rm_ecat_hw/rm_readings", 10, &ChassisGimbalShooterManual::wheelsOnlineCallback, this);
@@ -578,15 +578,16 @@ void ChassisGimbalShooterManual::cPress()
 
 void ChassisGimbalShooterManual::bPress()
 {
-  if (!relocalized_)
-  {
-    //relocalize_srv_->callService();
-    hdl_global_localization::QueryGlobalLocalizationGoal goal;
-    relocalize_action_client_.sendGoal(goal);
-    relocalized_ = true;
-  }
-  else
     use_lio_cmd_sender_->setUseLio(true);
+//  if (!relocalized_)
+//  {
+//    //relocalize_srv_->callService();
+//    hdl_global_localization::QueryGlobalLocalizationGoal goal;
+//    relocalize_action_client_.sendGoal(goal);
+//    relocalized_ = true;
+//  }
+//  else
+//    use_lio_cmd_sender_->setUseLio(true);
 }
 
 void ChassisGimbalShooterManual::bRelease()
@@ -795,7 +796,7 @@ void ChassisGimbalShooterManual::qPress()
 
 void ChassisGimbalShooterManual::zPress()
 {
-  if (chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::RAW && !deployed_ && relocalized_)
+  if (chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::RAW && !deployed_)
   {
     ballistic_yaw_ = ballistic_solution_.data[0];
     ballistic_pitch_ = ballistic_solution_.data[1];
@@ -871,10 +872,10 @@ void ChassisGimbalShooterManual::ctrlRRelease()
 
 void ChassisGimbalShooterManual::ctrlBPress()
 {
-  // switch_detection_srv_->switchEnemyColor();
-  // switch_detection_srv_->callService();
-  relocalize_action_client_.cancelAllGoals();
-  relocalized_ = false;
+   switch_detection_srv_->switchEnemyColor();
+   switch_detection_srv_->callService();
+//  relocalize_action_client_.cancelAllGoals();
+//  relocalized_ = false;
 }
 
 void ChassisGimbalShooterManual::ctrlQPress()

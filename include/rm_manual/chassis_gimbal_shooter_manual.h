@@ -8,7 +8,7 @@
 #include <rm_common/decision/calibration_queue.h>
 #include <angles/angles.h>
 #include <actionlib/client/simple_action_client.h>
-#include <hdl_global_localization/QueryGlobalLocalizationAction.h>
+//#include <hdl_global_localization/QueryGlobalLocalizationAction.h>
 
 namespace rm_manual
 {
@@ -135,7 +135,7 @@ protected:
   rm_common::CalibrationQueue* shooter_calibration_;
   rm_common::CalibrationQueue* gimbal_calibration_;
 
-  actionlib::SimpleActionClient<hdl_global_localization::QueryGlobalLocalizationAction> relocalize_action_client_;
+  // actionlib::SimpleActionClient<hdl_global_localization::QueryGlobalLocalizationAction> relocalize_action_client_;
 
   ros::Subscriber wheel_online_sub_;
 
