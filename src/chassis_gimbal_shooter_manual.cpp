@@ -8,8 +8,10 @@ namespace rm_manual
 {
 ChassisGimbalShooterManual::ChassisGimbalShooterManual(ros::NodeHandle& nh, ros::NodeHandle& nh_referee)
   : ChassisGimbalManual(nh, nh_referee)
-  , relocalize_action_client_("hdl_global_localization/relocalize", true)
+  //, relocalize_action_client_("hdl_global_localization/relocalize", true)
 {
+  ballistic_pitch_step_ = getParam(nh,"ballistic_pitch_step", 0.01);
+  ballistic_yaw_step_ = getParam(nh,"ballistic_yaw_step", 0.01);
   wheel_online_sub_ = nh.subscribe<rm_ecat_msgs::RmEcatStandardSlaveReadings>(
       "/rm_ecat_hw/rm_readings", 10, &ChassisGimbalShooterManual::wheelsOnlineCallback, this);
   ros::NodeHandle shooter_nh(nh, "shooter");
@@ -429,14 +431,14 @@ void ChassisGimbalShooterManual::updatePc(const rm_msgs::DbusData::ConstPtr& dbu
     //ballistic_pitch_ += traj_scale_ * gimbal_cmd_sender_->getMsg()->rate_pitch * ros::Duration(0.01).toSec();
     gimbal_cmd_sender_->setGimbalTraj(ballistic_yaw_, ballistic_pitch_);
   }
-  if (deployed_ && std::sqrt(std::pow(vel_cmd_sender_->getMsg()->linear.x, 2) +
-                             std::pow(vel_cmd_sender_->getMsg()->linear.y, 2)) > 0.0)
-  {
-    setChassisMode(rm_msgs::ChassisCmd::FOLLOW);
-    gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
-    deployed_ = false;
-    shooter_cmd_sender_->setDeployState(false);
-  }
+//  if (deployed_ && std::sqrt(std::pow(vel_cmd_sender_->getMsg()->linear.x, 2) +
+//                             std::pow(vel_cmd_sender_->getMsg()->linear.y, 2)) > 0.0)
+//  {
+//    setChassisMode(rm_msgs::ChassisCmd::FOLLOW);
+//    gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
+//    deployed_ = false;
+//    shooter_cmd_sender_->setDeployState(false);
+//  }
 }
 
 void ChassisGimbalShooterManual::rightSwitchDownRise()
@@ -578,15 +580,16 @@ void ChassisGimbalShooterManual::cPress()
 
 void ChassisGimbalShooterManual::bPress()
 {
-  if (!relocalized_)
-  {
-    //relocalize_srv_->callService();
-    hdl_global_localization::QueryGlobalLocalizationGoal goal;
-    relocalize_action_client_.sendGoal(goal);
-    relocalized_ = true;
-  }
-  else
     use_lio_cmd_sender_->setUseLio(true);
+//  if (!relocalized_)
+//  {
+//    //relocalize_srv_->callService();
+//    hdl_global_localization::QueryGlobalLocalizationGoal goal;
+//    relocalize_action_client_.sendGoal(goal);
+//    relocalized_ = true;
+//  }
+//  else
+//    use_lio_cmd_sender_->setUseLio(true);
 }
 
 void ChassisGimbalShooterManual::bRelease()
@@ -617,8 +620,12 @@ void ChassisGimbalShooterManual::gPress()
 
 void ChassisGimbalShooterManual::wPress()
 {
-  if (use_scope_)
-    extra_target_x_cmd_sender_->dropTargetX();
+//  if (use_scope_)
+//    extra_target_x_cmd_sender_->dropTargetX();
+  if (deployed_){
+      ballistic_pitch_ -= ballistic_pitch_step_;
+      std::cout<<"aaa"<<std::endl;
+  }
   else
   {
     ChassisGimbalManual::wPress();
@@ -636,8 +643,10 @@ void ChassisGimbalShooterManual::wPress()
 
 void ChassisGimbalShooterManual::aPress()
 {
-  if (use_scope_)
-    extra_target_y_cmd_sender_->dropTargetY();
+//  if (use_scope_)
+//    extra_target_y_cmd_sender_->dropTargetY();
+  if (deployed_)
+      ballistic_yaw_ += ballistic_yaw_step_;
   else
   {
     ChassisGimbalManual::aPress();
@@ -655,8 +664,10 @@ void ChassisGimbalShooterManual::aPress()
 
 void ChassisGimbalShooterManual::sPress()
 {
-  if (use_scope_)
-    extra_target_x_cmd_sender_->raiseTargetX();
+//  if (use_scope_)
+//    extra_target_x_cmd_sender_->raiseTargetX();
+  if (deployed_)
+      ballistic_pitch_ += ballistic_pitch_step_;
   else
   {
     ChassisGimbalManual::sPress();
@@ -674,8 +685,10 @@ void ChassisGimbalShooterManual::sPress()
 
 void ChassisGimbalShooterManual::dPress()
 {
-  if (use_scope_)
-    extra_target_y_cmd_sender_->raiseTargetY();
+//  if (use_scope_)
+//    extra_target_y_cmd_sender_->raiseTargetY();
+  if (deployed_)
+      ballistic_yaw_ -= ballistic_yaw_step_;
   else
   {
     ChassisGimbalManual::dPress();
@@ -693,69 +706,85 @@ void ChassisGimbalShooterManual::dPress()
 
 void ChassisGimbalShooterManual::wRelease()
 {
-  if (!use_scope_)
-  {
-    ChassisGimbalManual::wRelease();
-    vel_cmd_sender_->setAngularZVel(is_gyro_ ? 1 : 0);
+  if(!deployed_){
+      if (!use_scope_)
+      {
+          ChassisGimbalManual::wRelease();
+          vel_cmd_sender_->setAngularZVel(is_gyro_ ? 1 : 0);
+      }
   }
 }
 void ChassisGimbalShooterManual::aRelease()
 {
-  if (!use_scope_)
-  {
-    ChassisGimbalManual::aRelease();
-    vel_cmd_sender_->setAngularZVel(is_gyro_ ? 1 : 0);
+  if(!deployed_){
+      if (!use_scope_)
+      {
+          ChassisGimbalManual::aRelease();
+          vel_cmd_sender_->setAngularZVel(is_gyro_ ? 1 : 0);
+      }
   }
 }
 void ChassisGimbalShooterManual::sRelease()
 {
-  if (!use_scope_)
-  {
-    ChassisGimbalManual::sRelease();
-    vel_cmd_sender_->setAngularZVel(is_gyro_ ? 1 : 0);
+  if(!deployed_){
+      if (!use_scope_)
+      {
+          ChassisGimbalManual::sRelease();
+          vel_cmd_sender_->setAngularZVel(is_gyro_ ? 1 : 0);
+      }
   }
 }
 void ChassisGimbalShooterManual::dRelease()
 {
-  if (!use_scope_)
-  {
-    ChassisGimbalManual::dRelease();
-    vel_cmd_sender_->setAngularZVel(is_gyro_ ? 1 : 0);
+  if(!deployed_){
+      if (!use_scope_)
+      {
+          ChassisGimbalManual::dRelease();
+          vel_cmd_sender_->setAngularZVel(is_gyro_ ? 1 : 0);
+      }
   }
 }
 void ChassisGimbalShooterManual::wPressing()
 {
-  if (!use_scope_)
-  {
-    ChassisGimbalManual::wPressing();
-    vel_cmd_sender_->setAngularZVel(is_gyro_ ? gyro_rotate_reduction_ : 0);
+  if(!deployed_){
+      if (!use_scope_)
+      {
+          ChassisGimbalManual::wPressing();
+          vel_cmd_sender_->setAngularZVel(is_gyro_ ? gyro_rotate_reduction_ : 0);
+      }
   }
 }
 
 void ChassisGimbalShooterManual::aPressing()
 {
-  if (!use_scope_)
-  {
-    ChassisGimbalManual::aPressing();
-    vel_cmd_sender_->setAngularZVel(is_gyro_ ? gyro_rotate_reduction_ : 0);
+  if(!deployed_){
+      if (!use_scope_)
+      {
+          ChassisGimbalManual::aPressing();
+          vel_cmd_sender_->setAngularZVel(is_gyro_ ? gyro_rotate_reduction_ : 0);
+      }
   }
 }
 
 void ChassisGimbalShooterManual::sPressing()
 {
-  if (!use_scope_)
-  {
-    ChassisGimbalManual::sPressing();
-    vel_cmd_sender_->setAngularZVel(is_gyro_ ? gyro_rotate_reduction_ : 0);
+  if(!deployed_){
+      if (!use_scope_)
+      {
+          ChassisGimbalManual::sPressing();
+          vel_cmd_sender_->setAngularZVel(is_gyro_ ? gyro_rotate_reduction_ : 0);
+      }
   }
 }
 
 void ChassisGimbalShooterManual::dPressing()
 {
-  if (!use_scope_)
-  {
-    ChassisGimbalManual::dPressing();
-    vel_cmd_sender_->setAngularZVel(is_gyro_ ? gyro_rotate_reduction_ : 0);
+  if(deployed_){
+      if (!use_scope_)
+      {
+          ChassisGimbalManual::dPressing();
+          vel_cmd_sender_->setAngularZVel(is_gyro_ ? gyro_rotate_reduction_ : 0);
+      }
   }
 }
 
@@ -795,7 +824,7 @@ void ChassisGimbalShooterManual::qPress()
 
 void ChassisGimbalShooterManual::zPress()
 {
-  if (chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::RAW && !deployed_ && relocalized_)
+  if (chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::RAW && !deployed_)
   {
     ballistic_yaw_ = ballistic_solution_.data[0];
     ballistic_pitch_ = ballistic_solution_.data[1];
@@ -871,10 +900,10 @@ void ChassisGimbalShooterManual::ctrlRRelease()
 
 void ChassisGimbalShooterManual::ctrlBPress()
 {
-  // switch_detection_srv_->switchEnemyColor();
-  // switch_detection_srv_->callService();
-  relocalize_action_client_.cancelAllGoals();
-  relocalized_ = false;
+   switch_detection_srv_->switchEnemyColor();
+   switch_detection_srv_->callService();
+//  relocalize_action_client_.cancelAllGoals();
+//  relocalized_ = false;
 }
 
 void ChassisGimbalShooterManual::ctrlQPress()
