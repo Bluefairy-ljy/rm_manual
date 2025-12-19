@@ -779,7 +779,7 @@ void ChassisGimbalShooterManual::sPressing()
 
 void ChassisGimbalShooterManual::dPressing()
 {
-  if(deployed_){
+  if(!deployed_){
       if (!use_scope_)
       {
           ChassisGimbalManual::dPressing();
