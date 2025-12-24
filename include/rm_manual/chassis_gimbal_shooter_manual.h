@@ -123,11 +123,7 @@ protected:
   rm_common::CameraSwitchCommandSender* camera_switch_cmd_sender_{};
   rm_common::JointPositionBinaryCommandSender* scope_cmd_sender_{};
   rm_common::JointPositionBinaryCommandSender* image_transmission_cmd_sender_{};
-  rm_common::JointPointCommandSender* pitch_joint_sender_{};
-  rm_common::JointPointCommandSender* yaw_joint_sender_{};
   rm_common::UseLioCommandSender* use_lio_cmd_sender_{};
-  rm_common::ExtraTargetYCommandSender* extra_target_y_cmd_sender_{};
-  rm_common::ExtraTargetXCommandSender* extra_target_x_cmd_sender_{};
   rm_common::SwitchDetectionCaller* switch_detection_srv_{};
   rm_common::SwitchDetectionCaller* switch_armor_target_srv_{};
   //rm_common::RelocalizeCaller* relocalize_srv_{};
@@ -149,7 +145,7 @@ protected:
        up_change_position_ = false, low_change_position_ = false, need_change_position_ = false, deployed_ = false,
        relocalized_=false;
   bool all_wheel_offline_ = false;
-  double ballistic_yaw_, ballistic_pitch_;
+  double ballistic_yaw_ = 0, ballistic_pitch_ = 0;
   double ballistic_yaw_step_, ballistic_pitch_step_;
   double scale_;
 };

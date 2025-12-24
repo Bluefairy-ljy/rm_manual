@@ -32,30 +32,10 @@ ChassisGimbalShooterManual::ChassisGimbalShooterManual(ros::NodeHandle& nh, ros:
     image_transmission_cmd_sender_ = new rm_common::JointPositionBinaryCommandSender(image_transmission_nh);
     scale_ = getParam(image_transmission_nh, "position_scale", 1);
   }
-  if (nh.hasParam("target_x"))
-  {
-    ros::NodeHandle target_x_nh(nh, "target_x");
-    extra_target_x_cmd_sender_ = new rm_common::ExtraTargetXCommandSender(target_x_nh);
-  }
-  if (nh.hasParam("target_y"))
-  {
-    ros::NodeHandle target_y_nh(nh, "target_y");
-    extra_target_y_cmd_sender_ = new rm_common::ExtraTargetYCommandSender(target_y_nh);
-  }
   if (nh.hasParam("use_lio"))
   {
     ros::NodeHandle use_lio_nh(nh, "use_lio");
     use_lio_cmd_sender_ = new rm_common::UseLioCommandSender(use_lio_nh);
-  }
-  if (nh.hasParam("pitch_joint"))
-  {
-    ros::NodeHandle pitch_joint_nh(nh, "pitch_joint");
-    pitch_joint_sender_ = new rm_common::JointPointCommandSender(pitch_joint_nh, joint_state_);
-  }
-  if (nh.hasParam("yaw_joint"))
-  {
-    ros::NodeHandle yaw_joint_nh(nh, "yaw_joint");
-    yaw_joint_sender_ = new rm_common::JointPointCommandSender(yaw_joint_nh, joint_state_);
   }
 
   ros::NodeHandle detection_switch_nh(nh, "detection_switch");
@@ -267,10 +247,6 @@ void ChassisGimbalShooterManual::sendCommand(const ros::Time& time)
   shooter_cmd_sender_->sendCommand(time);
   if (camera_switch_cmd_sender_)
     camera_switch_cmd_sender_->sendCommand(time);
-  if (extra_target_x_cmd_sender_)
-    extra_target_x_cmd_sender_->sendCommand(time);
-  if (extra_target_y_cmd_sender_)
-    extra_target_y_cmd_sender_->sendCommand(time);
   if (use_lio_cmd_sender_)
     use_lio_cmd_sender_->sendCommand(time);
   if (scope_cmd_sender_)
@@ -620,12 +596,8 @@ void ChassisGimbalShooterManual::gPress()
 
 void ChassisGimbalShooterManual::wPress()
 {
-//  if (use_scope_)
-//    extra_target_x_cmd_sender_->dropTargetX();
-  if (deployed_){
+  if (deployed_)
       ballistic_pitch_ -= ballistic_pitch_step_;
-      std::cout<<"aaa"<<std::endl;
-  }
   else
   {
     ChassisGimbalManual::wPress();
@@ -643,8 +615,6 @@ void ChassisGimbalShooterManual::wPress()
 
 void ChassisGimbalShooterManual::aPress()
 {
-//  if (use_scope_)
-//    extra_target_y_cmd_sender_->dropTargetY();
   if (deployed_)
       ballistic_yaw_ += ballistic_yaw_step_;
   else
@@ -664,8 +634,6 @@ void ChassisGimbalShooterManual::aPress()
 
 void ChassisGimbalShooterManual::sPress()
 {
-//  if (use_scope_)
-//    extra_target_x_cmd_sender_->raiseTargetX();
   if (deployed_)
       ballistic_pitch_ += ballistic_pitch_step_;
   else
@@ -685,8 +653,6 @@ void ChassisGimbalShooterManual::sPress()
 
 void ChassisGimbalShooterManual::dPress()
 {
-//  if (use_scope_)
-//    extra_target_y_cmd_sender_->raiseTargetY();
   if (deployed_)
       ballistic_yaw_ -= ballistic_yaw_step_;
   else
