@@ -169,7 +169,6 @@ void ChassisGimbalShooterManual::checkKeyboard(const rm_msgs::DbusData::ConstPtr
   r_event_.update((!dbus_data->key_ctrl) & dbus_data->key_r);
   v_event_.update((!dbus_data->key_ctrl) & dbus_data->key_v);
   z_event_.update((!dbus_data->key_ctrl) & dbus_data->key_z);
-  q_event_.update((!dbus_data->key_ctrl) & dbus_data->key_q);
   ctrl_f_event_.update(dbus_data->key_f & dbus_data->key_ctrl);
   ctrl_v_event_.update(dbus_data->key_ctrl & dbus_data->key_v);
   ctrl_b_event_.update(dbus_data->key_ctrl & dbus_data->key_b & !dbus_data->key_shift);
@@ -244,6 +243,7 @@ void ChassisGimbalShooterManual::shootDataCallback(const rm_msgs::ShootData::Con
 void ChassisGimbalShooterManual::sendCommand(const ros::Time& time)
 {
   ChassisGimbalManual::sendCommand(time);
+  chassis_active_sus_cmd_sender_ -> sendActiveSusCommand(time);
   shooter_cmd_sender_->sendCommand(time);
   if (camera_switch_cmd_sender_)
     camera_switch_cmd_sender_->sendCommand(time);
@@ -782,10 +782,10 @@ void ChassisGimbalShooterManual::vPress()
 
 void ChassisGimbalShooterManual::qPress()
 {
-  if (!shooter_cmd_sender_->getDeployState())
-    shooter_cmd_sender_->setDeployState(true);
-  else
-    shooter_cmd_sender_->setDeployState(false);
+  if(chassis_active_sus_cmd_sender_->getMsg()->mode == rm_msgs::ChassisActiveSusCmd::SIT)
+    chassis_active_sus_cmd_sender_->setMode(rm_msgs::ChassisActiveSusCmd::STAND);
+  if(chassis_active_sus_cmd_sender_->getMsg()->mode == rm_msgs::ChassisActiveSusCmd::STAND)
+    chassis_active_sus_cmd_sender_->setMode(rm_msgs::ChassisActiveSusCmd::SIT);
 }
 
 void ChassisGimbalShooterManual::zPress()
