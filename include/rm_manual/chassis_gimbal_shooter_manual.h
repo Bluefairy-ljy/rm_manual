@@ -109,12 +109,12 @@ protected:
     shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::STOP);
   }
   void ctrlVPress();
-  void ctrlBPress();
   void ctrlRPress();
   void ctrlZPress();
   void ctrlXPress();
   virtual void ctrlRRelease();
   virtual void ctrlQPress();
+  virtual void ctrlBPress();
 
   InputEvent self_inspection_event_, game_start_event_, e_event_, c_event_, g_event_, q_event_, b_event_, x_event_,
       r_event_, v_event_, z_event_, ctrl_f_event_, ctrl_v_event_, ctrl_b_event_, ctrl_q_event_, ctrl_r_event_,
@@ -125,6 +125,7 @@ protected:
   rm_common::JointPositionBinaryCommandSender* image_transmission_cmd_sender_{};
   rm_common::UseLioCommandSender* use_lio_cmd_sender_{};
   rm_common::SwitchDetectionCaller* switch_detection_srv_{};
+  rm_common::SwitchDetectionCaller* switch_detection_left_srv_{};
   rm_common::SwitchDetectionCaller* switch_armor_target_srv_{};
   //rm_common::RelocalizeCaller* relocalize_srv_{};
   rm_common::CalibrationQueue* chassis_calibration_;

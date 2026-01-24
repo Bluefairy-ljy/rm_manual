@@ -39,7 +39,9 @@ ChassisGimbalShooterManual::ChassisGimbalShooterManual(ros::NodeHandle& nh, ros:
   }
 
   ros::NodeHandle detection_switch_nh(nh, "detection_switch");
+  ros::NodeHandle detection_switch_left_nh(nh, "detection_switch_left");
   switch_detection_srv_ = new rm_common::SwitchDetectionCaller(detection_switch_nh);
+  switch_detection_left_srv_ = new rm_common::SwitchDetectionCaller(detection_switch_left_nh);
   ros::NodeHandle armor_target_switch_nh(nh, "armor_target_switch");
   switch_armor_target_srv_ = new rm_common::SwitchDetectionCaller(armor_target_switch_nh);
   // ros::NodeHandle relocalize_nh(nh, "hdl_global_localization/relocalize");
@@ -333,6 +335,8 @@ void ChassisGimbalShooterManual::remoteControlTurnOn()
   setChassisMode(rm_msgs::ChassisCmd::FOLLOW);
   std::string robot_color = robot_id_ >= 100 ? "blue" : "red";
   switch_detection_srv_->setEnemyColor(robot_id_, robot_color);
+  if (robot_id_ == rm_msgs::GameRobotStatus::BLUE_HERO || robot_id_ == rm_msgs::GameRobotStatus::RED_HERO)
+    shooter_cmd_sender_->setHeroState(true);
 }
 
 void ChassisGimbalShooterManual::robotDie()
