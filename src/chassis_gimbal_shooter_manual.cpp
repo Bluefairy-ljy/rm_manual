@@ -761,9 +761,11 @@ void ChassisGimbalShooterManual::dPressing()
 void ChassisGimbalShooterManual::xPress()
 {
   double roll{}, pitch{}, yaw{};
+  double roll_{}, pitch_{}, yaw_{};
   try
   {
     quatToRPY(tf_buffer_.lookupTransform("base_link", "yaw", ros::Time(0)).transform.rotation, roll, pitch, yaw);
+    quatToRPY(tf_buffer_.lookupTransform("robot_odom", "base_link", ros::Time(0)).transform.rotation, roll_, pitch_, yaw_);
   }
   catch (tf2::TransformException& ex)
   {
@@ -771,7 +773,7 @@ void ChassisGimbalShooterManual::xPress()
   }
   gimbal_cmd_sender_->setGimbalTrajFrameId("base_link");
   gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::TRAJ);
-  gimbal_cmd_sender_->setGimbalTraj(yaw + M_PI, pitch);
+  gimbal_cmd_sender_->setGimbalTraj(yaw - yaw_, pitch);
 }
 
 void ChassisGimbalShooterManual::xRelease()
