@@ -60,6 +60,7 @@ protected:
   rm_common::Vel2DCommandSender* vel_cmd_sender_{};
   rm_common::GimbalCommandSender* gimbal_cmd_sender_{};
   rm_common::ChassisCommandSender* chassis_cmd_sender_{};
+  rm_common::ChassisActiveSuspensionCommandSender* chassis_active_sus_cmd_sender_{};
 
   double x_scale_{}, y_scale_{};
   bool is_gyro_{ 0 }, wheels_offline_ = false;

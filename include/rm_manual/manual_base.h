@@ -8,6 +8,7 @@
 #include <iostream>
 #include <ros/ros.h>
 #include <unordered_map>
+#include <std_msgs/Float32MultiArray.h>
 #include <serial/serial.h>
 #include <std_msgs/Bool.h>
 #include <tf2_ros/buffer.h>
@@ -98,6 +99,7 @@ protected:
   virtual void shootDataCallback(const rm_msgs::ShootData::ConstPtr& data)
   {
   }
+  virtual void ballisticSolutionCallback(const std_msgs::Float32MultiArray::ConstPtr& data);
 
   // EtherCAT
   virtual void ecatReconnected()
@@ -138,6 +140,8 @@ protected:
   }
   virtual void rightSwitchMidRise()
   {
+    controller_manager_.startController("controllers/gimbal_controller");
+    controller_manager_.startController("controllers/chassis_controller");
     state_ = RC;
   }
   virtual void rightSwitchMidOn()
@@ -146,6 +150,8 @@ protected:
   }
   virtual void rightSwitchUpRise()
   {
+    controller_manager_.startController("controllers/gimbal_controller");
+    controller_manager_.startController("controllers/chassis_controller");
     state_ = PC;
   }
   virtual void rightSwitchUpOn()
@@ -157,7 +163,7 @@ protected:
 
   ros::Subscriber ecat_bus_state_sub_, odom_sub_, dbus_sub_, track_sub_, referee_sub_, capacity_sub_, game_status_sub_,
       joint_state_sub_, game_robot_hp_sub_, actuator_state_sub_, power_heat_data_sub_, gimbal_des_error_sub_,
-      game_robot_status_sub_, suggest_fire_sub_, shoot_beforehand_cmd_sub_, shoot_data_sub_;
+      game_robot_status_sub_, suggest_fire_sub_, shoot_beforehand_cmd_sub_, shoot_data_sub_, ballistic_solution_sub_;
 
   sensor_msgs::JointState joint_state_;
   rm_msgs::TrackData track_data_;
@@ -174,7 +180,7 @@ protected:
   bool remote_is_open_{ false }, referee_is_online_ = false;
   bool ecat_bus_is_online_{ true };
   int state_ = PASSIVE;
-  int robot_id_, chassis_power_;
+  int robot_id_{}, chassis_power_{};
   int chassis_output_on_ = 0, gimbal_output_on_ = 0, shooter_output_on_ = 0;
   InputEvent robot_hp_event_, right_switch_down_event_, right_switch_mid_event_, right_switch_up_event_,
       left_switch_down_event_, left_switch_mid_event_, left_switch_up_event_, ecat_reconnected_event_;
@@ -182,6 +188,7 @@ protected:
   InputEvent chassis_power_on_event_, gimbal_power_on_event_, shooter_power_on_event_;
   ros::Time chassis_actuator_last_get_stamp_, gimbal_actuator_last_get_stamp_, shooter_actuator_last_get_stamp_;
   std::vector<std::string> chassis_mount_motor_, gimbal_mount_motor_, shooter_mount_motor_;
+  std_msgs::Float32MultiArray ballistic_solution_;
 };
 
 }  // namespace rm_manual
