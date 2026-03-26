@@ -8,8 +8,6 @@ namespace rm_manual
 {
 ChassisGimbalManual::ChassisGimbalManual(ros::NodeHandle& nh, ros::NodeHandle& nh_referee) : ManualBase(nh, nh_referee)
 {
-  ros::NodeHandle active_sus_nh(nh, "ActiveSuspension");
-  chassis_active_sus_cmd_sender_ = new rm_common::ChassisActiveSuspensionCommandSender(active_sus_nh);
   ros::NodeHandle chassis_nh(nh, "chassis");
   chassis_cmd_sender_ = new rm_common::ChassisCommandSender(chassis_nh);
   if (!chassis_nh.getParam("speed_change_scale", speed_change_scale_))

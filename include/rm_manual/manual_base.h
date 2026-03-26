@@ -99,7 +99,9 @@ protected:
   virtual void shootDataCallback(const rm_msgs::ShootData::ConstPtr& data)
   {
   }
-  virtual void ballisticSolutionCallback(const std_msgs::Float32MultiArray::ConstPtr& data);
+  virtual void ballisticSolutionCallback(const std_msgs::Float32MultiArray::ConstPtr& data)
+  {
+  }
 
   // EtherCAT
   virtual void ecatReconnected()
@@ -140,8 +142,6 @@ protected:
   }
   virtual void rightSwitchMidRise()
   {
-    controller_manager_.startController("controllers/gimbal_controller");
-    controller_manager_.startController("controllers/chassis_controller");
     state_ = RC;
   }
   virtual void rightSwitchMidOn()
@@ -150,8 +150,6 @@ protected:
   }
   virtual void rightSwitchUpRise()
   {
-    controller_manager_.startController("controllers/gimbal_controller");
-    controller_manager_.startController("controllers/chassis_controller");
     state_ = PC;
   }
   virtual void rightSwitchUpOn()
@@ -177,18 +175,16 @@ protected:
   ros::NodeHandle nh_;
 
   ros::Time referee_last_get_stamp_;
-  bool remote_is_open_{ false }, referee_is_online_ = false;
-  bool ecat_bus_is_online_{ true };
+  bool remote_is_open_{ false }, referee_is_online_{ false }, ecat_bus_is_online_{ true };
   int state_ = PASSIVE;
   int robot_id_{}, chassis_power_{};
-  int chassis_output_on_ = 0, gimbal_output_on_ = 0, shooter_output_on_ = 0;
+  int chassis_output_on_{}, gimbal_output_on_{}, shooter_output_on_{};
   InputEvent robot_hp_event_, right_switch_down_event_, right_switch_mid_event_, right_switch_up_event_,
       left_switch_down_event_, left_switch_mid_event_, left_switch_up_event_, ecat_reconnected_event_;
 
   InputEvent chassis_power_on_event_, gimbal_power_on_event_, shooter_power_on_event_;
   ros::Time chassis_actuator_last_get_stamp_, gimbal_actuator_last_get_stamp_, shooter_actuator_last_get_stamp_;
   std::vector<std::string> chassis_mount_motor_, gimbal_mount_motor_, shooter_mount_motor_;
-  std_msgs::Float32MultiArray ballistic_solution_;
 };
 
 }  // namespace rm_manual
