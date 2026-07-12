@@ -52,13 +52,13 @@ ChassisGimbalShooterManual::ChassisGimbalShooterManual(ros::NodeHandle& nh, ros:
   ros::NodeHandle relocate_nh(nh, "relocate");
   relocate_srv_ = new rm_common::ServiceCallerBase<std_srvs::Empty>(relocate_nh);
 
-  XmlRpc::XmlRpcValue rpc_value;
-  nh.getParam("shooter_calibration", rpc_value);
-  shooter_calibration_ = new rm_common::CalibrationQueue(rpc_value, nh, controller_manager_);
-  nh.getParam("gimbal_calibration", rpc_value);
-  gimbal_calibration_ = new rm_common::CalibrationQueue(rpc_value, nh, controller_manager_);
-  nh.getParam("chassis_calibration", rpc_value);
-  chassis_calibration_ = new rm_common::CalibrationQueue(rpc_value, nh, controller_manager_);
+  XmlRpc::XmlRpcValue shooter_calibration_rpc, gimbal_calibration_rpc, chassis_calibration_rpc, rpc_value;
+  nh.getParam("shooter_calibration", shooter_calibration_rpc);
+  shooter_calibration_ = new rm_common::CalibrationQueue(shooter_calibration_rpc, nh, controller_manager_);
+  nh.getParam("gimbal_calibration", gimbal_calibration_rpc);
+  gimbal_calibration_ = new rm_common::CalibrationQueue(gimbal_calibration_rpc, nh, controller_manager_);
+  nh.getParam("chassis_calibration", chassis_calibration_rpc);
+  chassis_calibration_ = new rm_common::CalibrationQueue(chassis_calibration_rpc, nh, controller_manager_);
   if (!nh.getParam("chassis_motor", rpc_value))
     ROS_WARN("chassis_motor no defined (namespace: %s)", nh.getNamespace().c_str());
   else
@@ -248,10 +248,17 @@ void ChassisGimbalShooterManual::ballisticSolutionCallback(const std_msgs::Float
   ballistic_solution_ = *data;
 }
 
+void ChassisGimbalShooterManual::protectStateCallback(const std_msgs::Bool::ConstPtr& data)
+{
+  protect_state_ = data->data;
+}
+
 void ChassisGimbalShooterManual::sendCommand(const ros::Time& time)
 {
   ChassisGimbalManual::sendCommand(time);
   shooter_cmd_sender_->sendCommand(time);
+  if (protect_state_)
+    chassis_active_sus_cmd_sender_->setMode(rm_msgs::ChassisActiveSusCmd::UP);
   if (chassis_active_sus_cmd_sender_)
     chassis_active_sus_cmd_sender_->sendCommand(time);
   if (camera_switch_cmd_sender_)
@@ -312,10 +319,6 @@ void ChassisGimbalShooterManual::remoteControlTurnOff()
 void ChassisGimbalShooterManual::remoteControlTurnOn()
 {
   ChassisGimbalManual::remoteControlTurnOn();
-  if (controller_manager_.hasController("controllers/gimbal_controller"))
-    controller_manager_.stopController("controllers/gimbal_controller");
-  if (controller_manager_.hasController("controllers/chassis_controller"))
-    controller_manager_.stopController("controllers/chassis_controller");
   shooter_calibration_->stopController();
   gimbal_calibration_->stopController();
   chassis_calibration_->stopController();
@@ -332,7 +335,6 @@ void ChassisGimbalShooterManual::robotDie()
   ManualBase::robotDie();
   shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::STOP);
   use_scope_ = false;
-  deployed_ = false;
 }
 
 void ChassisGimbalShooterManual::chassisOutputOn()
@@ -420,10 +422,6 @@ void ChassisGimbalShooterManual::rightSwitchDownRise()
 void ChassisGimbalShooterManual::rightSwitchMidRise()
 {
   ChassisGimbalManual::rightSwitchMidRise();
-  if (controller_manager_.hasController("controllers/gimbal_controller"))
-    controller_manager_.startController("controllers/gimbal_controller");
-  if (controller_manager_.hasController("controllers/chassis_controller"))
-    controller_manager_.startController("controllers/chassis_controller");
   chassis_cmd_sender_->power_limit_->updateState(rm_common::PowerLimit::BURST);
   shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::STOP);
 }
@@ -431,10 +429,6 @@ void ChassisGimbalShooterManual::rightSwitchMidRise()
 void ChassisGimbalShooterManual::rightSwitchUpRise()
 {
   ChassisGimbalManual::rightSwitchUpRise();
-  if (controller_manager_.hasController("controllers/gimbal_controller"))
-    controller_manager_.startController("controllers/gimbal_controller");
-  if (controller_manager_.hasController("controllers/chassis_controller"))
-    controller_manager_.startController("controllers/chassis_controller");
   chassis_cmd_sender_->power_limit_->updateState(rm_common::PowerLimit::CHARGE);
   shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::STOP);
 }
@@ -811,12 +805,14 @@ void ChassisGimbalShooterManual::zPress()
   if (chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::RAW && !deployed_)
   {
     ballistic_yaw_ = ballistic_solution_.data[0];
-    ballistic_pitch_ = ballistic_solution_.data[1];
+    ballistic_pitch_ = -0.31;
     gimbal_cmd_sender_->setGimbalTrajFrameId("base_link");
     gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::TRAJ);
     gimbal_cmd_sender_->setGimbalTraj(ballistic_yaw_, ballistic_pitch_);
     setChassisMode(rm_msgs::ChassisCmd::DEPLOY);
     shooter_cmd_sender_->setDeployState(true);
+    if (image_transmission_cmd_sender_)
+      image_transmission_cmd_sender_->on();
     deployed_ = true;
   }
   else
@@ -824,13 +820,15 @@ void ChassisGimbalShooterManual::zPress()
     setChassisMode(rm_msgs::ChassisCmd::FOLLOW);
     gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
     shooter_cmd_sender_->setDeployState(false);
+    if (image_transmission_cmd_sender_)
+      image_transmission_cmd_sender_->off();
     deployed_ = false;
   }
 }
 
 void ChassisGimbalShooterManual::shiftPress()
 {
-  if (chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::FOLLOW && is_gyro_)
+  if (chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::FOLLOW && is_gyro_ && !deployed_)
   {
     setChassisMode(rm_msgs::ChassisCmd::FOLLOW);
     gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
@@ -871,7 +869,6 @@ void ChassisGimbalShooterManual::ctrlQPress()
 {
   shooter_calibration_->reset();
   gimbal_calibration_->reset();
-  image_transmission_cmd_sender_->off();
 }
 
 void ChassisGimbalShooterManual::ctrlCPress()
@@ -900,12 +897,6 @@ void ChassisGimbalShooterManual::ctrlXPress()
 {
   if (image_transmission_cmd_sender_)
     image_transmission_cmd_sender_->changePosition(-scale_);
-}
-
-void ChassisGimbalShooterManual::robotRevive()
-{
-  setChassisMode(rm_msgs::ChassisCmd::FOLLOW);
-  ManualBase::robotRevive();
 }
 
 }  // namespace rm_manual

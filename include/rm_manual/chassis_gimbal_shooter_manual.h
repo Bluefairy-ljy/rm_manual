@@ -8,6 +8,7 @@
 #include <rm_common/decision/calibration_queue.h>
 #include <std_srvs/Empty.h>
 #include <angles/angles.h>
+#include <unordered_set>
 
 namespace rm_manual
 {
@@ -42,7 +43,6 @@ protected:
   void remoteControlTurnOff() override;
   void remoteControlTurnOn() override;
   void robotDie() override;
-  void robotRevive() override;
   void rightSwitchDownRise() override;
   void rightSwitchMidRise() override;
   void rightSwitchUpRise() override;
@@ -60,6 +60,7 @@ protected:
   void trackCallback(const rm_msgs::TrackData::ConstPtr& data) override;
   void shootDataCallback(const rm_msgs::ShootData::ConstPtr& data) override;
   void ballisticSolutionCallback(const std_msgs::Float32MultiArray::ConstPtr& data) override;
+  void protectStateCallback(const std_msgs::Bool::ConstPtr& data) override;
   void leftSwitchUpOn(ros::Duration duration);
   void leftSwitchUpFall();
   void mouseLeftPress();
@@ -143,7 +144,7 @@ protected:
   uint8_t last_shoot_freq_{};
 
   bool prepare_shoot_{ false }, is_balance_{ false }, use_scope_{ false }, deployed_{ false },
-      is_follow_yaw_reverse_{ false }, all_wheel_offline_{ false };
+      is_follow_yaw_reverse_{ false }, all_wheel_offline_{ false }, protect_state_{ false };
   double ballistic_yaw_{}, ballistic_pitch_{};
   double ballistic_yaw_step_{}, ballistic_pitch_step_{};
   double scale_{};
