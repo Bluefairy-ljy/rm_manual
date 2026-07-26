@@ -11,6 +11,9 @@ ChassisGimbalShooterManual::ChassisGimbalShooterManual(ros::NodeHandle& nh, ros:
 {
   ballistic_pitch_step_ = getParam(nh, "ballistic_pitch_step", 0.01);
   ballistic_yaw_step_ = getParam(nh, "ballistic_yaw_step", 0.01);
+  deploy_pitch_ = getParam(nh, "deploy_pitch", 0.0);
+  deploy_yaw_ = getParam(nh, "deploy_yaw", 0.0);
+  deploy_shoot_duration_ = getParam(nh, "deploy_shoot_duration", 0.0);
   wheel_online_sub_ = nh.subscribe<rm_ecat_msgs::RmEcatStandardSlaveReadings>(
       "/rm_ecat_hw/rm_readings", 10, &ChassisGimbalShooterManual::wheelsOnlineCallback, this);
   ros::NodeHandle shooter_nh(nh, "shooter");
@@ -28,14 +31,19 @@ ChassisGimbalShooterManual::ChassisGimbalShooterManual(ros::NodeHandle& nh, ros:
   if (nh.hasParam("image_transmission"))
   {
     ros::NodeHandle image_transmission_nh(nh, "image_transmission");
-    image_transmission_cmd_sender_ = new rm_common::JointPositionBinaryCommandSender(image_transmission_nh);
-    scale_ = getParam(image_transmission_nh, "position_scale", 1.0);
+    image_transmission_cmd_sender_ = new rm_common::CardCommandSender(image_transmission_nh);
+    scale_ = getParam(image_transmission_nh, "position_scale", 0.5);
   }
   if (nh.hasParam("ballistic_solver_request"))
   {
     ros::NodeHandle ballistic_solver_request_nh(nh, "ballistic_solver_request");
     ballistic_solver_request_cmd_sender_ =
         new rm_common::BallisticSolverRequestCommandSender(ballistic_solver_request_nh);
+  }
+  if (nh.hasParam("deploy_shoot_pid"))
+  {
+    ros::NodeHandle deploy_shoot_pid_nh(nh, "deploy_shoot_pid");
+    deploy_shoot_pid_cmd_sender_ = new rm_common::DeployShootPidCommandSender(deploy_shoot_pid_nh);
   }
   if (nh.hasParam("ActiveSuspension"))
   {
@@ -94,6 +102,7 @@ ChassisGimbalShooterManual::ChassisGimbalShooterManual(ros::NodeHandle& nh, ros:
   ctrl_c_event_.setRising(boost::bind(&ChassisGimbalShooterManual::ctrlCPress, this));
   ctrl_x_event_.setRising(boost::bind(&ChassisGimbalShooterManual::ctrlXPress, this));
   ctrl_r_event_.setRising(boost::bind(&ChassisGimbalShooterManual::ctrlRPress, this));
+  ctrl_e_event_.setRising(boost::bind(&ChassisGimbalShooterManual::ctrlEPress, this));
   shift_event_.setEdge(boost::bind(&ChassisGimbalShooterManual::shiftPress, this),
                        boost::bind(&ChassisGimbalShooterManual::shiftRelease, this));
   mouse_left_event_.setActiveHigh(boost::bind(&ChassisGimbalShooterManual::mouseLeftPress, this));
@@ -180,6 +189,7 @@ void ChassisGimbalShooterManual::checkKeyboard(const rm_msgs::DbusData::ConstPtr
   ctrl_z_event_.update(dbus_data->key_ctrl & dbus_data->key_z);
   ctrl_c_event_.update(dbus_data->key_ctrl & dbus_data->key_c);
   ctrl_x_event_.update(dbus_data->key_ctrl & dbus_data->key_x);
+  ctrl_e_event_.update(dbus_data->key_ctrl & dbus_data->key_e);
   shift_event_.update(dbus_data->key_shift & !dbus_data->key_ctrl);
   mouse_left_event_.update(dbus_data->p_l & !dbus_data->key_ctrl);
   mouse_right_event_.update(dbus_data->p_r & !dbus_data->key_ctrl);
@@ -257,14 +267,14 @@ void ChassisGimbalShooterManual::sendCommand(const ros::Time& time)
 {
   ChassisGimbalManual::sendCommand(time);
   shooter_cmd_sender_->sendCommand(time);
-  if (protect_state_)
-    chassis_active_sus_cmd_sender_->setMode(rm_msgs::ChassisActiveSusCmd::UP);
   if (chassis_active_sus_cmd_sender_)
     chassis_active_sus_cmd_sender_->sendCommand(time);
   if (camera_switch_cmd_sender_)
     camera_switch_cmd_sender_->sendCommand(time);
   if (ballistic_solver_request_cmd_sender_)
     ballistic_solver_request_cmd_sender_->sendCommand(time);
+  if (deploy_shoot_pid_cmd_sender_)
+    deploy_shoot_pid_cmd_sender_->sendCommand(time);
   if (scope_cmd_sender_)
   {
     if (!use_scope_)
@@ -276,6 +286,20 @@ void ChassisGimbalShooterManual::sendCommand(const ros::Time& time)
   if (image_transmission_cmd_sender_)
   {
     image_transmission_cmd_sender_->sendCommand(time);
+  }
+  // Avoid deploy state in non-deploy mode
+  if (deployed_ && (state_ != PC || chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::RAW ||
+                    gimbal_cmd_sender_->getMsg()->mode != rm_msgs::GimbalCmd::TRAJ))
+  {
+    shooter_cmd_sender_->setDeployState(false);
+    shooter_cmd_sender_->setDeployAllowFireFlag(false);
+    gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd ::RATE);
+    chassis_cmd_sender_->setMode(rm_msgs::ChassisCmd::FOLLOW);
+    if (deploy_shoot_pid_cmd_sender_)
+      deploy_shoot_pid_cmd_sender_->setEnabled(false);
+    if (image_transmission_cmd_sender_)
+      image_transmission_cmd_sender_->off();
+    deployed_ = false;
   }
 }
 
@@ -322,6 +346,12 @@ void ChassisGimbalShooterManual::remoteControlTurnOn()
   shooter_calibration_->stopController();
   gimbal_calibration_->stopController();
   chassis_calibration_->stopController();
+  if (scope_cmd_sender_)
+    scope_cmd_sender_->off();
+  if (image_transmission_cmd_sender_)
+    image_transmission_cmd_sender_->off();
+  use_scope_ = false;
+  deployed_ = false;
   gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
   setChassisMode(rm_msgs::ChassisCmd::FOLLOW);
   std::string robot_color = robot_id_ >= 100 ? "blue" : "red";
@@ -382,7 +412,8 @@ void ChassisGimbalShooterManual::updatePc(const rm_msgs::DbusData::ConstPtr& dbu
 {
   ChassisGimbalManual::updatePc(dbus_data);
   if (chassis_cmd_sender_->power_limit_->getState() != rm_common::PowerLimit::BURST && !is_gyro_ && !is_balance_)
-  {  // Capacitor enter fast charge when chassis stop.
+  {
+    // Capacitor enter fast charge when chassis stop.
     if (!dbus_data->key_shift && chassis_cmd_sender_->getMsg()->mode == rm_msgs::ChassisCmd::FOLLOW &&
         std::sqrt(std::pow(vel_cmd_sender_->getMsg()->linear.x, 2) + std::pow(vel_cmd_sender_->getMsg()->linear.y, 2)) >
             0.0)
@@ -409,6 +440,15 @@ void ChassisGimbalShooterManual::updatePc(const rm_msgs::DbusData::ConstPtr& dbu
       ballistic_pitch_ += traj_scale_ * gimbal_cmd_sender_->getMsg()->rate_pitch * ros::Duration(0.01).toSec();
     }
     gimbal_cmd_sender_->setGimbalTraj(ballistic_yaw_, ballistic_pitch_);
+  }
+  if (protect_state_ && chassis_active_sus_cmd_sender_)
+  {
+    chassis_active_sus_cmd_sender_->setMode(rm_msgs::ChassisActiveSusCmd::UP);
+  }
+  if (deploy_shoot_pid_cmd_sender_ && !mouse_left_event_.getState() &&
+      ros::Time::now() - last_deploy_shoot_time_ > ros::Duration(deploy_shoot_duration_))
+  {
+    deploy_shoot_pid_cmd_sender_->setEnabled(false);
   }
 }
 
@@ -490,34 +530,49 @@ void ChassisGimbalShooterManual::leftSwitchUpOn(ros::Duration duration)
 
 void ChassisGimbalShooterManual::mouseLeftPress()
 {
+  if (deploy_shoot_pid_cmd_sender_)
+  {
+    if (deployed_ && chassis_cmd_sender_->getMsg()->mode == rm_msgs::ChassisCmd::RAW &&
+        gimbal_cmd_sender_->getMsg()->mode == rm_msgs::GimbalCmd::TRAJ)
+    {
+      deploy_shoot_pid_cmd_sender_->setEnabled(true);
+      last_deploy_shoot_time_ = ros::Time();
+    }
+  }
   if (shooter_cmd_sender_->getMsg()->mode == rm_msgs::ShootCmd::STOP)
   {
     shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::READY);
     prepare_shoot_ = false;
   }
-  if (prepare_shoot_)
+  if (mouse_right_event_.getState())
+  {
+    if (track_data_.tracking == 1)
+    {
+      if (shooter_cmd_sender_->getMsg()->mode != rm_msgs::ShootCmd::STOP)
+      {
+        shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::PUSH);
+        shooter_cmd_sender_->checkError(ros::Time::now());
+      }
+    }
+    else if (shooter_cmd_sender_->getMsg()->mode != rm_msgs::ShootCmd::STOP)
+      shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::READY);
+  }
+  else if (prepare_shoot_)
   {
     shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::PUSH);
-    shooter_cmd_sender_->checkError(ros::Time::now());
   }
 }
 
 void ChassisGimbalShooterManual::mouseRightPress()
 {
+  if (deployed_)
+    return;
   if (track_data_.tracking == 0)
     gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
   else
   {
     gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::TRACK);
     gimbal_cmd_sender_->setBulletSpeed(shooter_cmd_sender_->getSpeed());
-  }
-  if (track_data_.id == 6 && track_data_.tracking == 1)
-  {
-    if (shooter_cmd_sender_->getMsg()->mode != rm_msgs::ShootCmd::STOP)
-    {
-      shooter_cmd_sender_->setMode(rm_msgs::ShootCmd::PUSH);
-      shooter_cmd_sender_->checkError(ros::Time::now());
-    }
   }
 }
 
@@ -537,6 +592,8 @@ void ChassisGimbalShooterManual::eRelease()
 
 void ChassisGimbalShooterManual::cPress()
 {
+  if (deployed_)
+    return;
   if (is_gyro_)
   {
     setChassisMode(rm_msgs::ChassisCmd::FOLLOW);
@@ -551,6 +608,7 @@ void ChassisGimbalShooterManual::cPress()
 
 void ChassisGimbalShooterManual::bPress()
 {
+  last_ballistic_solution_request_time_ = ros::Time::now();
   if (ballistic_solver_request_cmd_sender_)
     ballistic_solver_request_cmd_sender_->setBallisticSolverRequest(true);
 }
@@ -573,11 +631,6 @@ void ChassisGimbalShooterManual::rPress()
       gimbal_cmd_sender_->setEject(false);
     }
   }
-}
-
-void ChassisGimbalShooterManual::gPress()
-{
-  shooter_cmd_sender_->dropSpeed();
 }
 
 void ChassisGimbalShooterManual::wPress()
@@ -750,14 +803,10 @@ void ChassisGimbalShooterManual::dPressing()
 
 void ChassisGimbalShooterManual::xPress()
 {
-  double roll_current{}, pitch_current{}, yaw_current{};
-  double roll_poweron{}, pitch_poweron{}, yaw_poweron{};
+  double roll{}, pitch{}, yaw{};
   try
   {
-    quatToRPY(tf_buffer_.lookupTransform("base_link", "yaw", ros::Time(0)).transform.rotation, roll_current,
-              pitch_current, yaw_current);
-    quatToRPY(tf_buffer_.lookupTransform("map", "base_link", ros::Time(0)).transform.rotation, roll_poweron,
-              pitch_poweron, yaw_poweron);
+    quatToRPY(tf_buffer_.lookupTransform("base_link", "yaw", ros::Time(0)).transform.rotation, roll, pitch, yaw);
   }
   catch (tf2::TransformException& ex)
   {
@@ -765,17 +814,24 @@ void ChassisGimbalShooterManual::xPress()
   }
   gimbal_cmd_sender_->setGimbalTrajFrameId("base_link");
   gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::TRAJ);
-  gimbal_cmd_sender_->setGimbalTraj(yaw_current - yaw_poweron, pitch_current);
+  gimbal_cmd_sender_->setGimbalTraj(yaw + M_PI, pitch);
 }
 
 void ChassisGimbalShooterManual::xRelease()
 {
+  if (deployed_)
+    return;
   gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::RATE);
 }
 
 void ChassisGimbalShooterManual::vPress()
 {
   shooter_cmd_sender_->raiseSpeed();
+}
+
+void ChassisGimbalShooterManual::gPress()
+{
+  shooter_cmd_sender_->dropSpeed();
 }
 
 void ChassisGimbalShooterManual::qPress()
@@ -804,15 +860,23 @@ void ChassisGimbalShooterManual::zPress()
 {
   if (chassis_cmd_sender_->getMsg()->mode != rm_msgs::ChassisCmd::RAW && !deployed_)
   {
-    ballistic_yaw_ = ballistic_solution_.data[0];
-    ballistic_pitch_ = -0.31;
+    if ((ros::Time::now() - last_ballistic_solution_request_time_).toSec() < 3.0)
+    {
+      ballistic_yaw_ = ballistic_solution_.data[0];
+      ballistic_pitch_ = ballistic_solution_.data[1];
+    }
+    else
+    {
+      ballistic_yaw_ = deploy_yaw_;
+      ballistic_pitch_ = deploy_pitch_;
+    }
     gimbal_cmd_sender_->setGimbalTrajFrameId("base_link");
     gimbal_cmd_sender_->setMode(rm_msgs::GimbalCmd::TRAJ);
     gimbal_cmd_sender_->setGimbalTraj(ballistic_yaw_, ballistic_pitch_);
     setChassisMode(rm_msgs::ChassisCmd::DEPLOY);
     shooter_cmd_sender_->setDeployState(true);
     if (image_transmission_cmd_sender_)
-      image_transmission_cmd_sender_->on();
+      image_transmission_cmd_sender_->long_on();
     deployed_ = true;
   }
   else
@@ -897,6 +961,12 @@ void ChassisGimbalShooterManual::ctrlXPress()
 {
   if (image_transmission_cmd_sender_)
     image_transmission_cmd_sender_->changePosition(-scale_);
+}
+
+void ChassisGimbalShooterManual::ctrlEPress()
+{
+  if (image_transmission_cmd_sender_)
+    image_transmission_cmd_sender_->short_on();
 }
 
 }  // namespace rm_manual
